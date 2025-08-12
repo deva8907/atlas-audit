@@ -20,7 +20,8 @@ builder.Services.AddSwaggerGen();
 string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=atlas.db";
 
 // Register Audit services
-builder.Services.AddScoped<IAuditService, AuditService>();
+// Use Singleton so background tasks can safely use it after requests complete
+builder.Services.AddSingleton<IAuditService, AuditService>();
 
 // Register audit strategies
 builder.Services.AddScoped<IAuditDataStrategy, PatientAuditDataStrategy>();

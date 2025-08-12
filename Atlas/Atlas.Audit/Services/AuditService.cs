@@ -14,12 +14,12 @@ public interface IAuditService
 
 public class AuditService : IAuditService
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<AuditService> _logger;
 
-    public AuditService(IServiceProvider serviceProvider, ILogger<AuditService> logger)
+    public AuditService(IConfiguration configuration, ILogger<AuditService> logger)
     {
-        _serviceProvider = serviceProvider;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -27,8 +27,6 @@ public class AuditService : IAuditService
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            
             // Create a simple audit record for database storage
             var auditRecord = new
             {
@@ -42,7 +40,7 @@ public class AuditService : IAuditService
             };
 
             // Save to database using SQLite
-            await SaveToDatabase(auditRecord, scope);
+            await SaveToDatabase(auditRecord);
         }
         catch (Exception ex)
         {
@@ -52,10 +50,9 @@ public class AuditService : IAuditService
         }
     }
 
-    private async Task SaveToDatabase(object auditRecord, IServiceScope scope)
+    private async Task SaveToDatabase(object auditRecord)
     {
-        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        var connectionString = _configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrEmpty(connectionString))
         {
