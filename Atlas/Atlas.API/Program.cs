@@ -17,7 +17,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Database connection string
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=atlas.db";
+string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=atlas.db";
 
 // Register Audit services
 builder.Services.AddScoped<IAuditService, AuditService>();
@@ -27,7 +27,7 @@ builder.Services.AddScoped<IAuditDataStrategy, PatientAuditDataStrategy>();
 builder.Services.AddScoped<IAuditDataStrategy, VisitAuditDataStrategy>();
 
 // Register audit strategy factory
-builder.Services.AddSingleton<AuditDataStrategyFactory>(serviceProvider =>
+builder.Services.AddScoped<AuditDataStrategyFactory>(serviceProvider =>
 {
     var strategies = serviceProvider.GetServices<IAuditDataStrategy>();
     return new AuditDataStrategyFactory(strategies);
@@ -38,13 +38,13 @@ builder.Services.AddScoped<AuditInterceptor>();
 
 // Register Patient domain services
 builder.Services.AddDbContext<PatientDbContext>(options =>
-    options.UseSqlite(connectionString));
+    options.UseSqlite(connectionString, b => b.MigrationsAssembly("Atlas.API")));
 
 builder.Services.AddScoped<IPatientService, PatientService>();
 
 // Register Visit domain services
 builder.Services.AddDbContext<VisitDbContext>(options =>
-    options.UseSqlite(connectionString));
+    options.UseSqlite(connectionString, b => b.MigrationsAssembly("Atlas.API")));
 
 builder.Services.AddScoped<IVisitService, VisitService>();
 
@@ -60,5 +60,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+
+
 
 app.Run();

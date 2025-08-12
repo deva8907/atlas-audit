@@ -13,6 +13,7 @@ public class AuditInterceptor : SaveChangesInterceptor
     private readonly AuditDataStrategyFactory _strategyFactory;
     private readonly IAuditService _auditService;
     private readonly ILogger<AuditInterceptor> _logger;
+    private readonly AsyncLocal<List<AuditData>> _pendingAuditData = new();
 
     public AuditInterceptor(
         AuditDataStrategyFactory strategyFactory,
@@ -31,22 +32,9 @@ public class AuditInterceptor : SaveChangesInterceptor
     {
         try
         {
+            // Capture audit data before save and store in state
             var auditEntries = CaptureAuditData(eventData.Context);
-            // Process audit entries immediately for simplicity
-            _ = Task.Run(async () =>
-            {
-                foreach (var auditData in auditEntries)
-                {
-                    try
-                    {
-                        await _auditService.SaveAuditDataAsync(auditData);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to save audit entry for {TableName}", auditData.TableName);
-                    }
-                }
-            });
+            _pendingAuditData.Value = auditEntries;
         }
         catch (Exception ex)
         {
@@ -59,7 +47,44 @@ public class AuditInterceptor : SaveChangesInterceptor
 
     public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
     {
+        // Process audit data after save operation completes
+        ProcessPendingAuditData();
         return base.SavedChanges(eventData, result);
+    }
+
+    public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+    {
+        // Process audit data after save operation completes
+        ProcessPendingAuditData();
+        return base.SavedChangesAsync(eventData, result, cancellationToken);
+    }
+
+    private void ProcessPendingAuditData()
+    {
+        var auditEntries = _pendingAuditData.Value;
+        if (auditEntries == null || auditEntries.Count == 0)
+        {
+            return;
+        }
+
+        // Clear the pending data
+        _pendingAuditData.Value = null;
+
+        // Process audit entries asynchronously
+        _ = Task.Run(async () =>
+        {
+            foreach (var auditData in auditEntries)
+            {
+                try
+                {
+                    await _auditService.SaveAuditDataAsync(auditData);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to save audit entry for {TableName}", auditData.TableName);
+                }
+            }
+        });
     }
 
     private List<AuditData> CaptureAuditData(DbContext context)
